@@ -1,8 +1,7 @@
 from flask import request, jsonify, Blueprint
 from models import db, User, Kegiatan, PersonalTask, Review, Catatan
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask_login import login_user, login_required, logout_user, current_user
-# from app import app
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 routes = Blueprint('routes', __name__)
 
@@ -27,46 +26,54 @@ def login():
     user = User.query.filter_by(email=data['email']).first()
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'message': 'Invalid credentials'}), 401
-    login_user(user)
-    return jsonify({'message': 'Logged in successfully'})
+    access_token = create_access_token(identity=user.user_id)
+    return jsonify(access_token=access_token), 200
 
-# User Logout
-@routes.route('/logout', methods=['POST'])
-@login_required
-def logout():
-    logout_user()
-    return jsonify({'message': 'Logged out successfully'})
+# Example protected route
+@routes.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user_id = get_jwt_identity()
+    user = User.query.get(current_user_id)
+    return jsonify({'user': user.nama}), 200
 
 # User Routes
 @routes.route('/users', methods=['POST'])
+@jwt_required()
 def create_user():
     data = request.json
-    new_user = User(nama=data['nama'], email=data['email'], password=data['password'])
+    hashed_password = generate_password_hash(data['password'], method='pbkdf2:sha256')
+    new_user = User(nama=data['nama'], email=data['email'], password=hashed_password)
     db.session.add(new_user)
     db.session.commit()
     return jsonify({'message': 'User created successfully'}), 201
 
 @routes.route('/users', methods=['GET'])
+@jwt_required()
 def get_users():
     users = User.query.all()
     return jsonify([{'user_id': user.user_id, 'nama': user.nama, 'email': user.email} for user in users])
 
 @routes.route('/users/<int:user_id>', methods=['GET'])
+@jwt_required()
 def get_user(user_id):
     user = User.query.get_or_404(user_id)
     return jsonify({'user_id': user.user_id, 'nama': user.nama, 'email': user.email})
 
 @routes.route('/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
 def update_user(user_id):
     user = User.query.get_or_404(user_id)
     data = request.json
     user.nama = data.get('nama', user.nama)
     user.email = data.get('email', user.email)
-    user.password = data.get('password', user.password)
+    if 'password' in data:
+        user.password = generate_password_hash(data['password'], method='pbkdf2:sha256')
     db.session.commit()
     return jsonify({'message': 'User updated successfully'})
 
 @routes.route('/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
 def delete_user(user_id):
     user = User.query.get_or_404(user_id)
     db.session.delete(user)
@@ -77,6 +84,7 @@ def delete_user(user_id):
 from datetime import datetime
 
 @routes.route('/events', methods=['POST'])
+@jwt_required()
 def create_event():
     data = request.json
     date_format = "%Y-%m-%d %H:%M:%S"
@@ -92,6 +100,7 @@ def create_event():
     return jsonify({'message': 'Event created successfully'}), 201
 
 @routes.route('/events', methods=['GET'])
+@jwt_required()
 def get_events():
     events = Kegiatan.query.all()
     return jsonify([{
@@ -104,6 +113,7 @@ def get_events():
     } for event in events])
 
 @routes.route('/events/<int:event_id>', methods=['GET'])
+@jwt_required()
 def get_event(event_id):
     event = Kegiatan.query.get_or_404(event_id)
     return jsonify({
@@ -116,6 +126,7 @@ def get_event(event_id):
     })
 
 @routes.route('/events/<int:event_id>', methods=['PUT'])
+@jwt_required()
 def update_event(event_id):
     event = Kegiatan.query.get_or_404(event_id)
     data = request.json
@@ -128,6 +139,7 @@ def update_event(event_id):
     return jsonify({'message': 'Event updated successfully'})
 
 @routes.route('/events/<int:event_id>', methods=['DELETE'])
+@jwt_required()
 def delete_event(event_id):
     event = Kegiatan.query.get_or_404(event_id)
     db.session.delete(event)
@@ -136,6 +148,7 @@ def delete_event(event_id):
 
 # PersonalTask Routes
 @routes.route('/tasks', methods=['POST'])
+@jwt_required()
 def create_task():
     data = request.json
     date_format = "%Y-%m-%d %H:%M:%S"
@@ -150,6 +163,7 @@ def create_task():
     return jsonify({'message': 'Task created successfully'}), 201
 
 @routes.route('/tasks', methods=['GET'])
+@jwt_required()
 def get_tasks():
     tasks = PersonalTask.query.all()
     return jsonify([{
@@ -161,6 +175,7 @@ def get_tasks():
     } for task in tasks])
 
 @routes.route('/tasks/<int:task_id>', methods=['GET'])
+@jwt_required()
 def get_task(task_id):
     task = PersonalTask.query.get_or_404(task_id)
     return jsonify({
@@ -172,6 +187,7 @@ def get_task(task_id):
     })
 
 @routes.route('/tasks/<int:task_id>', methods=['PUT'])
+@jwt_required()
 def update_task(task_id):
     task = PersonalTask.query.get_or_404(task_id)
     data = request.json
@@ -183,6 +199,7 @@ def update_task(task_id):
     return jsonify({'message': 'Task updated successfully'})
 
 @routes.route('/tasks/<int:task_id>', methods=['DELETE'])
+@jwt_required()
 def delete_task(task_id):
     task = PersonalTask.query.get_or_404(task_id)
     db.session.delete(task)
@@ -191,6 +208,7 @@ def delete_task(task_id):
 
 # Review Routes
 @routes.route('/reviews', methods=['POST'])
+@jwt_required()
 def create_review():
     data = request.json
     date_format = "%Y-%m-%d %H:%M:%S"
@@ -206,6 +224,7 @@ def create_review():
     return jsonify({'message': 'Review created successfully'}), 201
 
 @routes.route('/reviews', methods=['GET'])
+@jwt_required()
 def get_reviews():
     reviews = Review.query.all()
     return jsonify([{
@@ -218,6 +237,7 @@ def get_reviews():
     } for review in reviews])
 
 @routes.route('/reviews/<int:review_id>', methods=['GET'])
+@jwt_required()
 def get_review(review_id):
     review = Review.query.get_or_404(review_id)
     return jsonify({
@@ -230,6 +250,7 @@ def get_review(review_id):
     })
 
 @routes.route('/reviews/<int:review_id>', methods=['PUT'])
+@jwt_required()
 def update_review(review_id):
     review = Review.query.get_or_404(review_id)
     data = request.json
@@ -241,6 +262,7 @@ def update_review(review_id):
     return jsonify({'message': 'Review updated successfully'})
 
 @routes.route('/reviews/<int:review_id>', methods=['DELETE'])
+@jwt_required()
 def delete_review(review_id):
     review = Review.query.get_or_404(review_id)
     db.session.delete(review)
@@ -249,6 +271,7 @@ def delete_review(review_id):
 
 # Catatan Routes
 @routes.route('/notes', methods=['POST'])
+@jwt_required()
 def create_note():
     data = request.json
     new_note = Catatan(
@@ -260,6 +283,7 @@ def create_note():
     return jsonify({'message': 'Note created successfully'}), 201
 
 @routes.route('/notes', methods=['GET'])
+@jwt_required()
 def get_notes():
     notes = Catatan.query.all()
     return jsonify([{
@@ -269,6 +293,7 @@ def get_notes():
     } for note in notes])
 
 @routes.route('/notes/<int:catatan_id>', methods=['GET'])
+@jwt_required()
 def get_note(catatan_id):
     note = Catatan.query.get_or_404(catatan_id)
     return jsonify({
@@ -278,6 +303,7 @@ def get_note(catatan_id):
     })
 
 @routes.route('/notes/<int:catatan_id>', methods=['PUT'])
+@jwt_required()
 def update_note(catatan_id):
     note = Catatan.query.get_or_404(catatan_id)
     data = request.json
@@ -286,6 +312,7 @@ def update_note(catatan_id):
     return jsonify({'message': 'Note updated successfully'})
 
 @routes.route('/notes/<int:catatan_id>', methods=['DELETE'])
+@jwt_required()
 def delete_note(catatan_id):
     note = Catatan.query.get_or_404(catatan_id)
     db.session.delete(note)
