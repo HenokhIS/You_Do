@@ -29,7 +29,6 @@ def login():
     access_token = create_access_token(identity=user.user_id)
     return jsonify(access_token=access_token), 200
 
-# Example protected route
 @routes.route('/protected', methods=['GET'])
 @jwt_required()
 def protected():
@@ -84,20 +83,27 @@ def delete_user(user_id):
 from datetime import datetime
 
 @routes.route('/events', methods=['POST'])
-@jwt_required()
+@jwt_required() 
 def create_event():
-    data = request.json
-    date_format = "%Y-%m-%d %H:%M:%S"
+    tanggal = request.json.get('tanggal')
+    
+    try:
+        parsed_date = datetime.strptime(tanggal, '%Y-%m-%dT%H:%M')
+    except ValueError as e:
+        return jsonify({'error': 'Invalid datetime format', 'details': str(e)}), 400
+    
     new_event = Kegiatan(
-        user_id=data['user_id'],
-        judul=data['judul'],
-        deskripsi=data.get('deskripsi'),
-        tanggal=datetime.strptime(data['tanggal'], date_format),
-        tempat=data.get('tempat')
+        user_id=request.json.get('user_id'),
+        judul=request.json.get('judul'),
+        deskripsi=request.json.get('deskripsi'),
+        tanggal=parsed_date,
+        tempat=request.json.get('tempat')
     )
     db.session.add(new_event)
     db.session.commit()
+    
     return jsonify({'message': 'Event created successfully'}), 201
+
 
 @routes.route('/events', methods=['GET'])
 @jwt_required()
