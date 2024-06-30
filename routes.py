@@ -2,6 +2,8 @@ from flask import request, jsonify, Blueprint
 from models import db, User, Kegiatan, PersonalTask, Review, Catatan
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from datetime import datetime
+import arrow
 
 routes = Blueprint('routes', __name__)
 
@@ -27,7 +29,14 @@ def login():
     if not user or not check_password_hash(user.password, data['password']):
         return jsonify({'message': 'Invalid credentials'}), 401
     access_token = create_access_token(identity=user.user_id)
-    return jsonify(access_token=access_token), 200
+    return jsonify({
+        'access_token': access_token,
+        'user': {
+            'user_id': user.user_id,
+            'nama': user.nama,
+            'email': user.email
+        }
+    }), 200
 
 @routes.route('/protected', methods=['GET'])
 @jwt_required()
@@ -80,7 +89,6 @@ def delete_user(user_id):
     return jsonify({'message': 'User deleted successfully'})
 
 # Event Routes
-from datetime import datetime
 
 @routes.route('/events', methods=['POST'])
 @jwt_required() 
@@ -89,6 +97,7 @@ def create_event():
     
     try:
         parsed_date = datetime.strptime(tanggal, '%Y-%m-%dT%H:%M')
+        parsed_date = arrow.get(parsed_date).shift(hours=8).datetime
     except ValueError as e:
         return jsonify({'error': 'Invalid datetime format', 'details': str(e)}), 400
     
@@ -99,6 +108,7 @@ def create_event():
         tanggal=parsed_date,
         tempat=request.json.get('tempat')
     )
+    
     db.session.add(new_event)
     db.session.commit()
     

@@ -43,10 +43,8 @@ class PersonalTask(db.Model):
 class Review(db.Model):
     review_id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
-    kegiatan_id = db.Column(db.Integer, db.ForeignKey('kegiatan.kegiatan_id'), nullable=False)
     rating = db.Column(db.Integer, nullable=False)
     komentar = db.Column(db.Text, nullable=True)
-    tanggal_review = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Catatan(db.Model):
     catatan_id = db.Column(db.Integer, primary_key=True)
