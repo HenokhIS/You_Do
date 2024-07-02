@@ -97,7 +97,6 @@ def create_event():
     
     try:
         parsed_date = datetime.strptime(tanggal, '%Y-%m-%dT%H:%M')
-        parsed_date = arrow.get(parsed_date).shift(hours=8).datetime
     except ValueError as e:
         return jsonify({'error': 'Invalid datetime format', 'details': str(e)}), 400
     
@@ -149,7 +148,7 @@ def update_event(event_id):
     event.judul = data.get('judul', event.judul)
     event.deskripsi = data.get('deskripsi', event.deskripsi)
     date_string = request.json.get('tanggal')
-    event.tanggal = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
+    event.tanggal = datetime.strptime(date_string, '%Y-%m-%dT%H:%M')
     event.tempat = data.get('tempat', event.tempat)
     db.session.commit()
     return jsonify({'message': 'Event updated successfully'})
@@ -167,11 +166,15 @@ def delete_event(event_id):
 @jwt_required()
 def create_task():
     data = request.json
-    date_format = "%Y-%m-%d %H:%M:%S"
+    try:
+        due_date = datetime.strptime(data['due_date'], '%Y-%m-%d %H:%M:%S')
+    except ValueError as e:
+        return jsonify({'error': 'Invalid datetime format', 'details': str(e)}), 400
+
     new_task = PersonalTask(
         user_id=data['user_id'],
         task_description=data['task_description'],
-        due_date=datetime.strptime(data['due_date'], date_format),
+        due_date=due_date,
         status=data['status']
     )
     db.session.add(new_task)
@@ -227,17 +230,26 @@ def delete_task(task_id):
 @jwt_required()
 def create_review():
     data = request.json
-    date_format = "%Y-%m-%d %H:%M:%S"
-    new_review = Review(
-        user_id=data['user_id'],
-        kegiatan_id=data['kegiatan_id'],
-        rating=data['rating'],
-        komentar=data.get('komentar'),
-        tanggal_review=datetime.strptime(data['tanggal_review'], date_format),
-    )
-    db.session.add(new_review)
-    db.session.commit()
-    return jsonify({'message': 'Review created successfully'}), 201
+    current_user_id = get_jwt_identity()
+    
+    existing_review = Review.query.filter_by(user_id=current_user_id).first()
+
+    if existing_review:
+        # Update the existing review
+        existing_review.rating = data['rating']
+        existing_review.komentar = data.get('komentar')
+        db.session.commit()
+        return jsonify({'message': 'Review updated successfully'}), 200
+    else:
+        # Create a new review
+        new_review = Review(
+            user_id=current_user_id,
+            rating=data['rating'],
+            komentar=data.get('komentar')
+        )
+        db.session.add(new_review)
+        db.session.commit()
+        return jsonify({'message': 'Review created successfully'}), 201
 
 @routes.route('/reviews', methods=['GET'])
 @jwt_required()
@@ -246,10 +258,8 @@ def get_reviews():
     return jsonify([{
         'review_id': review.review_id,
         'user_id': review.user_id,
-        'kegiatan_id': review.kegiatan_id,
         'rating': review.rating,
-        'komentar': review.komentar,
-        'tanggal_review': review.tanggal_review
+        'komentar': review.komentar
     } for review in reviews])
 
 @routes.route('/reviews/<int:review_id>', methods=['GET'])
@@ -259,10 +269,8 @@ def get_review(review_id):
     return jsonify({
         'review_id': review.review_id,
         'user_id': review.user_id,
-        'kegiatan_id': review.kegiatan_id,
         'rating': review.rating,
-        'komentar': review.komentar,
-        'tanggal_review': review.tanggal_review
+        'komentar': review.komentar
     })
 
 @routes.route('/reviews/<int:review_id>', methods=['PUT'])
@@ -272,8 +280,6 @@ def update_review(review_id):
     data = request.json
     review.rating = data.get('rating', review.rating)
     review.komentar = data.get('komentar', review.komentar)
-    date_string = request.json.get('tanggal_review')
-    review.tanggal_review = datetime.strptime(date_string, '%Y-%m-%d %H:%M:%S')
     db.session.commit()
     return jsonify({'message': 'Review updated successfully'})
 
@@ -290,6 +296,9 @@ def delete_review(review_id):
 @jwt_required()
 def create_note():
     data = request.json
+    existing_note = Catatan.query.filter_by(user_id=data['user_id']).first()
+    if existing_note:
+        db.session.delete(existing_note)
     new_note = Catatan(
         user_id=data['user_id'],
         catatan=data['catatan']

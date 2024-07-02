@@ -38,7 +38,7 @@ class PersonalTask(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.user_id'), nullable=False)
     task_description = db.Column(db.Text, nullable=False)
     due_date = db.Column(db.DateTime, nullable=False)
-    status = db.Column(db.Enum('Not Started', 'In Progress', 'Completed', 'Overdue'), nullable=False)
+    status = db.Column(db.Enum('Not Started', 'In Progress', 'Completed'), nullable=False)
 
 class Review(db.Model):
     review_id = db.Column(db.Integer, primary_key=True)
